@@ -1,0 +1,94 @@
+:root {
+  color-scheme: light;
+  font-family: Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #eef4ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+.app {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 15% 15%, rgb(115 156 255 / 28%), transparent 35%),
+    radial-gradient(circle at 85% 85%, rgb(123 97 255 / 20%), transparent 30%),
+    #eef4ff;
+}
+
+.card {
+  width: min(100%, 480px);
+  padding: 52px 40px;
+  text-align: center;
+  background: rgb(255 255 255 / 88%);
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 28px;
+  box-shadow: 0 24px 70px rgb(48 72 130 / 18%);
+  backdrop-filter: blur(16px);
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: #5b67e8;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 8vw, 3.6rem);
+  line-height: 1.1;
+}
+
+.description {
+  margin: 20px 0 32px;
+  color: #65708a;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+button {
+  min-height: 52px;
+  padding: 0 28px;
+  color: white;
+  font: inherit;
+  font-weight: 750;
+  background: linear-gradient(135deg, #5965e8, #7655da);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgb(91 103 232 / 30%);
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgb(91 103 232 / 38%);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+button:focus-visible {
+  outline: 4px solid rgb(89 101 232 / 28%);
+  outline-offset: 4px;
+}
+
+@media (max-width: 520px) {
+  .card {
+    padding: 42px 24px;
+    border-radius: 22px;
+  }
+}

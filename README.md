@@ -1,15 +1,14 @@
 # 환영 GUI
 
-버튼을 누르면 `환영합니다!` 팝업이 표시되는 간단한 웹 GUI 프로젝트입니다.
+Java Swing으로 만든 데스크톱 GUI입니다. 버튼을 누르면 `환영합니다!` 대화상자가 표시됩니다.
 
 ## 실행
 
-`index.html`을 브라우저에서 열면 바로 실행됩니다.
+Eclipse에서 `codex/src/codex/app/WelcomeApp.java`를 연 뒤 **Run As > Java Application**을 선택합니다.
 
-로컬 서버로 실행하려면 프로젝트 폴더에서 다음 명령을 사용하세요.
+터미널에서는 다음 명령으로 실행할 수 있습니다.
 
 ```bash
-python3 -m http.server 8000
+javac -d out codex/src/module-info.java codex/src/codex/app/WelcomeApp.java
+java --module-path out --module codex/codex.app.WelcomeApp
 ```
-
-그다음 브라우저에서 `http://localhost:8000`을 엽니다.

@@ -1,8 +1,3 @@
-/**
- * 
- */
-/**
- * 
- */
-module coex {
+module codex {
+    requires java.desktop;
 }

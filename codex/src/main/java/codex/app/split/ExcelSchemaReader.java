@@ -27,16 +27,81 @@ public final class ExcelSchemaReader {
     public static List<TableDefinition> read(File file) throws IOException {
         List<TableDefinition> tables = new ArrayList<>();
         try (Workbook workbook = WorkbookFactory.create(file)) {
+            Map<String, String> tableDescriptions = readTableDescriptions(workbook);
+
             for (Sheet sheet : workbook) {
-                if (sheet.getSheetName().equalsIgnoreCase("목록") || sheet.getSheetName().equalsIgnoreCase("index")) continue;
-                TableDefinition table = parseSheet(sheet);
-                if (table != null && !table.columns().isEmpty()) tables.add(table);
+                if (sheet.getSheetName().equalsIgnoreCase("목록") || sheet.getSheetName().equalsIgnoreCase("index")) {
+                    continue;
+                }
+
+                String tableName = sheet.getSheetName().trim();
+                String tableDescription = tableDescriptions.getOrDefault(tableName.toLowerCase(Locale.ROOT), "");
+                TableDefinition table = parseSheet(sheet, tableDescription);
+                if (table != null && !table.columns().isEmpty()) {
+                    tables.add(table);
+                }
             }
         }
         return tables;
     }
 
-    private static TableDefinition parseSheet(Sheet sheet) {
+    private static Map<String, String> readTableDescriptions(Workbook workbook) {
+        Map<String, String> descriptions = new HashMap<>();
+        Sheet indexSheet = workbook.getSheet("목록");
+        if (indexSheet == null) {
+            indexSheet = workbook.getSheet("index");
+        }
+        if (indexSheet == null) {
+            return descriptions;
+        }
+
+        int headerRowIndex = findIndexHeaderRow(indexSheet);
+        if (headerRowIndex < 0) {
+            return descriptions;
+        }
+
+        Map<String, Integer> indexes = headerIndexes(indexSheet.getRow(headerRowIndex));
+        Integer tableIndex = indexes.get("테이블/뷰");
+        Integer descriptionIndex = indexes.get("설명");
+        if (tableIndex == null || descriptionIndex == null) {
+            return descriptions;
+        }
+
+        for (int rowIndex = headerRowIndex + 1; rowIndex <= indexSheet.getLastRowNum(); rowIndex++) {
+            Row row = indexSheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+
+            String tableName = cellText(row, tableIndex);
+            if (tableName.isBlank()) {
+                continue;
+            }
+
+            String description = normalizeOptional(cellText(row, descriptionIndex));
+            descriptions.put(tableName.trim().toLowerCase(Locale.ROOT), description);
+        }
+
+        return descriptions;
+    }
+
+    private static int findIndexHeaderRow(Sheet sheet) {
+        int limit = Math.min(sheet.getLastRowNum(), 20);
+        for (int rowIndex = 0; rowIndex <= limit; rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+
+            Map<String, Integer> indexes = headerIndexes(row);
+            if (indexes.containsKey("테이블/뷰") && indexes.containsKey("설명")) {
+                return rowIndex;
+            }
+        }
+        return -1;
+    }
+
+    private static TableDefinition parseSheet(Sheet sheet, String tableDescription) {
         int headerRowIndex = findHeaderRow(sheet);
         if (headerRowIndex < 0) return null;
         Map<String, Integer> indexes = headerIndexes(sheet.getRow(headerRowIndex));
@@ -44,7 +109,6 @@ public final class ExcelSchemaReader {
         int typeIndex = requiredIndex(indexes, "데이터 타입");
 
         String tableName = sheet.getSheetName().trim();
-        String tableDescription = normalizeOptional(cellText(sheet.getRow(0), 0));
         List<ColumnDefinition> columns = new ArrayList<>();
 
         for (int rowIndex = headerRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {

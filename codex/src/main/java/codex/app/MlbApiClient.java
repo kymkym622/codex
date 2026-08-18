@@ -51,6 +51,8 @@ final class MlbApiClient {
     MlbApiClient() {
         httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
     }
 
@@ -61,7 +63,14 @@ final class MlbApiClient {
     }
 
     List<Player> loadActiveRoster(int teamId) throws IOException, InterruptedException {
-        Map<String, Object> root = object(get("/teams/" + teamId + "/roster?rosterType=active"));
+        int season = Year.now().getValue();
+        String json = get("/teams/" + teamId
+                + "/roster?rosterType=active&season=" + season + "&hydrate=person");
+        return parseRoster(json);
+    }
+
+    static List<Player> parseRoster(String json) {
+        Map<String, Object> root = object(SimpleJson.parse(json));
         List<Player> players = new ArrayList<>();
         for (Object item : array(root.get("roster"))) {
             Map<String, Object> rosterEntry = object(item);
@@ -78,7 +87,7 @@ final class MlbApiClient {
     }
 
     PlayerDetails loadPlayer(int playerId) throws IOException, InterruptedException {
-        Map<String, Object> root = object(get("/people/" + playerId));
+        Map<String, Object> root = object(SimpleJson.parse(get("/people/" + playerId)));
         List<Object> people = array(root.get("people"));
         if (people.isEmpty()) {
             throw new IOException("선수 정보를 찾을 수 없습니다.");
@@ -108,7 +117,7 @@ final class MlbApiClient {
         int season = Year.now().getValue();
         String path = "/people/" + playerId
                 + "/stats?stats=season&group=hitting,pitching&season=" + season;
-        Map<String, Object> root = object(get(path));
+        Map<String, Object> root = object(SimpleJson.parse(get(path)));
         List<StatLine> result = new ArrayList<>();
 
         for (Object item : array(root.get("stats"))) {
@@ -126,6 +135,7 @@ final class MlbApiClient {
         HttpRequest request = HttpRequest.newBuilder(URI.create(API_ROOT + path))
                 .timeout(Duration.ofSeconds(20))
                 .header("Accept", "application/json")
+                .header("User-Agent", "MLBPlayerInfo/1.0")
                 .GET()
                 .build();
         HttpResponse<String> response = httpClient.send(

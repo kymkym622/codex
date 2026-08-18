@@ -57,6 +57,8 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>codex/codex.app.WelcomeApp</mainClass>
+                    <launcher>RandomTextPicker</launcher>
+                    <jlinkImageName>RandomTextPicker</jlinkImageName>
                 </configuration>
             </plugin>
         </plugins>

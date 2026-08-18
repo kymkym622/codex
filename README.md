@@ -1,33 +1,27 @@
-# MLB 선수 정보
+# DB CREATE문 생성기
 
-JavaFX로 만든 MLB 현재 1군 선수 조회 프로그램입니다.
+JavaFX 기반 데스크톱 프로그램입니다.
 
 ## 기능
 
-- MLB 팀 선택
-- 선택한 팀의 현재 활성 로스터 조회
-- 선수 기본 정보 표시
-- 현재 시즌 타격 및 투구 기록 표시
-- BABIP, ISO, BB%, K%, K/9, BB/9, HR/9, K-BB% 표시
+- 엑셀 파일 업로드 (`.xlsx`, `.xls`)
+- DB 종류 선택: MySQL / Oracle / MSSQL
+- 업로드된 테이블 정보를 DB별 CREATE TABLE 문으로 변환
+- 각 테이블 CREATE문 앞에 `=============== 테이블 설명 ================` 구분선 출력
+- 테이블 설명이 없으면 시트명(테이블명)을 구분선에 사용
+- 생성 결과 화면 표시
+- 전체 결과 클립보드 복사
+- UTF-8 TXT 파일 저장
 
-선수 정보는 실행 시 MLB Stats API에서 실시간으로 가져오므로 인터넷 연결이 필요합니다.
+## 지원 엑셀 형식
+
+- `목록` 시트는 자동으로 제외합니다.
+- 각 테이블은 별도 시트로 구성합니다.
+- 시트명: 테이블명
+- 첫 번째 행 첫 번째 셀: 테이블 설명 (비어 있으면 테이블명 사용)
+- 컬럼 헤더 행에는 최소 `컬럼명`, `데이터 타입`이 있어야 합니다.
+- 지원 헤더: `순번`, `컬럼명`, `데이터 타입`, `크기`, `소수점`, `NULL 허용`, `기본값`, `PK 순서`, `UNIQUE`, `설명`
 
 ## 실행
 
-Eclipse에서 `codex.app.WelcomeApp`을 Java Application으로 실행하거나 다음 명령을 사용합니다.
-
-```text
-mvn clean javafx:run
-```
-
-실행 이미지 생성:
-
-```text
-mvn clean javafx:jlink
-```
-
-생성 위치:
-
-```text
-target/MLBPlayerInfo/bin/MLBPlayerInfo
-```
+Eclipse에서 Maven 프로젝트로 Import한 뒤 Maven Update를 실행하고 `codex.app.WelcomeApp`을 Java Application으로 실행합니다.

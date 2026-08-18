@@ -53,15 +53,13 @@ public final class WelcomeApp {
         private final Button generateButton = new Button("CREATE문 생성");
         private final Button copyButton = new Button("복사");
         private final Button saveButton = new Button("TXT 저장");
-
         private File selectedExcel;
 
         @Override
         public void start(Stage stage) {
             Label title = new Label("DB CREATE문 생성기");
             title.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
-            Label description = new Label(
-                    "엑셀의 테이블 정보를 읽어 MySQL / Oracle / MSSQL용 CREATE문을 생성합니다.");
+            Label description = new Label("엑셀의 테이블 정보를 읽어 MySQL / Oracle / MSSQL용 CREATE문을 생성합니다.");
             description.setStyle("-fx-text-fill: #555555;");
 
             Button fileButton = new Button("엑셀 파일 선택");
@@ -73,22 +71,18 @@ public final class WelcomeApp {
             dbSelector.valueProperty().addListener((obs, oldValue, newValue) -> updateGenerateState());
 
             fileLabel.setMaxWidth(Double.MAX_VALUE);
-            fileLabel.setStyle("-fx-text-fill: #444444;");
             HBox.setHgrow(fileLabel, Priority.ALWAYS);
-
             HBox fileRow = new HBox(10, fileButton, fileLabel);
             fileRow.setAlignment(Pos.CENTER_LEFT);
 
             generateButton.setDisable(true);
             generateButton.setOnAction(event -> generate());
-
             HBox optionRow = new HBox(10, new Label("DB 종류"), dbSelector, generateButton);
             optionRow.setAlignment(Pos.CENTER_LEFT);
 
             VBox controls = new VBox(12, fileRow, optionRow, statusLabel);
             controls.setPadding(new Insets(18));
-            controls.setStyle(
-                    "-fx-background-color: #f7f7f7; -fx-background-radius: 8; -fx-border-color: #dddddd; -fx-border-radius: 8;");
+            controls.setStyle("-fx-background-color: #f7f7f7; -fx-background-radius: 8; -fx-border-color: #dddddd; -fx-border-radius: 8;");
 
             resultArea.setEditable(false);
             resultArea.setWrapText(false);
@@ -98,21 +92,17 @@ public final class WelcomeApp {
             copyButton.setDisable(true);
             copyButton.setTooltip(new Tooltip("생성 결과 전체를 클립보드에 복사합니다."));
             copyButton.setOnAction(event -> copyResult());
-
             saveButton.setDisable(true);
             saveButton.setOnAction(event -> saveResult(stage));
 
             HBox resultButtons = new HBox(10, copyButton, saveButton);
             resultButtons.setAlignment(Pos.CENTER_RIGHT);
-
             VBox center = new VBox(10, new Label("생성 결과"), resultArea, resultButtons);
             VBox.setVgrow(resultArea, Priority.ALWAYS);
 
-            VBox header = new VBox(5, title, description);
-
             BorderPane root = new BorderPane();
             root.setPadding(new Insets(24));
-            root.setTop(new VBox(18, header, controls));
+            root.setTop(new VBox(18, new VBox(5, title, description), controls));
             root.setCenter(center);
             BorderPane.setMargin(center, new Insets(18, 0, 0, 0));
 
@@ -127,13 +117,9 @@ public final class WelcomeApp {
         private void chooseExcel(Stage stage) {
             FileChooser chooser = new FileChooser();
             chooser.setTitle("테이블 정보 엑셀 선택");
-            chooser.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter("Excel 파일 (*.xlsx, *.xls)", "*.xlsx", "*.xls"));
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel 파일 (*.xlsx, *.xls)", "*.xlsx", "*.xls"));
             File file = chooser.showOpenDialog(stage);
-            if (file == null) {
-                return;
-            }
-
+            if (file == null) return;
             selectedExcel = file;
             fileLabel.setText(file.getAbsolutePath());
             statusLabel.setText("파일을 선택했습니다. DB 종류를 선택한 뒤 CREATE문을 생성하세요.");
@@ -150,10 +136,7 @@ public final class WelcomeApp {
             try {
                 DatabaseType databaseType = dbSelector.getValue();
                 List<TableDefinition> tables = ExcelSchemaReader.read(selectedExcel);
-                if (tables.isEmpty()) {
-                    throw new IllegalArgumentException("CREATE문으로 만들 테이블 시트를 찾지 못했습니다.");
-                }
-
+                if (tables.isEmpty()) throw new IllegalArgumentException("CREATE문으로 만들 테이블 시트를 찾지 못했습니다.");
                 String result = SqlGenerator.generate(tables, databaseType);
                 resultArea.setText(result);
                 resultArea.positionCaret(0);
@@ -168,9 +151,7 @@ public final class WelcomeApp {
         }
 
         private void copyResult() {
-            if (resultArea.getText().isBlank()) {
-                return;
-            }
+            if (resultArea.getText().isBlank()) return;
             ClipboardContent content = new ClipboardContent();
             content.putString(resultArea.getText());
             Clipboard.getSystemClipboard().setContent(content);
@@ -178,21 +159,14 @@ public final class WelcomeApp {
         }
 
         private void saveResult(Stage stage) {
-            if (resultArea.getText().isBlank()) {
-                return;
-            }
-
+            if (resultArea.getText().isBlank()) return;
             FileChooser chooser = new FileChooser();
             chooser.setTitle("CREATE문 TXT 저장");
             chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("텍스트 파일 (*.txt)", "*.txt"));
             DatabaseType db = dbSelector.getValue();
-            String suffix = db == null ? "sql" : db.name().toLowerCase(Locale.ROOT);
-            chooser.setInitialFileName("create_statements_" + suffix + ".txt");
+            chooser.setInitialFileName("create_statements_" + (db == null ? "sql" : db.name().toLowerCase(Locale.ROOT)) + ".txt");
             File target = chooser.showSaveDialog(stage);
-            if (target == null) {
-                return;
-            }
-
+            if (target == null) return;
             try {
                 Files.writeString(target.toPath(), resultArea.getText(), StandardCharsets.UTF_8);
                 statusLabel.setText("TXT 파일을 저장했습니다: " + target.getAbsolutePath());
@@ -216,63 +190,34 @@ public final class WelcomeApp {
 
         private static String rootMessage(Throwable throwable) {
             Throwable current = throwable;
-            while (current.getCause() != null) {
-                current = current.getCause();
-            }
+            while (current.getCause() != null) current = current.getCause();
             return current.getMessage() == null ? current.getClass().getSimpleName() : current.getMessage();
         }
     }
 
     private enum DatabaseType {
-        MYSQL("MySQL"),
-        ORACLE("Oracle"),
-        MSSQL("MSSQL");
-
+        MYSQL("MySQL"), ORACLE("Oracle"), MSSQL("MSSQL");
         private final String label;
-
-        DatabaseType(String label) {
-            this.label = label;
-        }
-
-        @Override
-        public String toString() {
-            return label;
-        }
+        DatabaseType(String label) { this.label = label; }
+        @Override public String toString() { return label; }
     }
 
-    private record ColumnDefinition(
-            int sequence,
-            String name,
-            String dataType,
-            String size,
-            String scale,
-            boolean nullable,
-            String defaultValue,
-            Integer primaryKeyOrder,
-            boolean unique,
-            String description) {
-    }
+    private record ColumnDefinition(int sequence, String name, String dataType, String size, String scale,
+            boolean nullable, String defaultValue, Integer primaryKeyOrder, boolean unique, String description) {}
 
-    private record TableDefinition(String name, String description, List<ColumnDefinition> columns) {
-    }
+    private record TableDefinition(String name, String description, List<ColumnDefinition> columns) {}
 
     private static final class ExcelSchemaReader {
         private static final DataFormatter FORMATTER = new DataFormatter(Locale.KOREA);
-
-        private ExcelSchemaReader() {
-        }
+        private ExcelSchemaReader() {}
 
         static List<TableDefinition> read(File file) throws IOException {
             List<TableDefinition> tables = new ArrayList<>();
             try (Workbook workbook = WorkbookFactory.create(file)) {
                 for (Sheet sheet : workbook) {
-                    if (sheet.getSheetName().equalsIgnoreCase("목록") || sheet.getSheetName().equalsIgnoreCase("index")) {
-                        continue;
-                    }
+                    if (sheet.getSheetName().equalsIgnoreCase("목록") || sheet.getSheetName().equalsIgnoreCase("index")) continue;
                     TableDefinition table = parseSheet(sheet);
-                    if (table != null && !table.columns().isEmpty()) {
-                        tables.add(table);
-                    }
+                    if (table != null && !table.columns().isEmpty()) tables.add(table);
                 }
             }
             return tables;
@@ -280,33 +225,22 @@ public final class WelcomeApp {
 
         private static TableDefinition parseSheet(Sheet sheet) {
             int headerRowIndex = findHeaderRow(sheet);
-            if (headerRowIndex < 0) {
-                return null;
-            }
-
-            Row headerRow = sheet.getRow(headerRowIndex);
-            Map<String, Integer> indexes = headerIndexes(headerRow);
+            if (headerRowIndex < 0) return null;
+            Map<String, Integer> indexes = headerIndexes(sheet.getRow(headerRowIndex));
             int nameIndex = requiredIndex(indexes, "컬럼명");
             int typeIndex = requiredIndex(indexes, "데이터 타입");
 
-            String tableName = sheet.getSheetName().trim();
+            String tableName = sheet.getSheetName().trim().toUpperCase(Locale.ROOT);
             String tableDescription = cellText(sheet.getRow(0), 0);
-            if (isBlankOrPlaceholder(tableDescription)) {
-                tableDescription = tableName;
-            }
+            if (isBlankOrPlaceholder(tableDescription)) tableDescription = tableName;
 
             List<ColumnDefinition> columns = new ArrayList<>();
             for (int rowIndex = headerRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
-                if (row == null) {
-                    continue;
-                }
-
+                if (row == null) continue;
                 String columnName = cellText(row, nameIndex);
                 String dataType = cellText(row, typeIndex);
-                if (columnName.isBlank() || dataType.isBlank()) {
-                    continue;
-                }
+                if (columnName.isBlank() || dataType.isBlank()) continue;
 
                 int sequence = parseInt(cellText(row, indexes.getOrDefault("순번", -1)), columns.size() + 1);
                 String size = cellText(row, indexes.getOrDefault("크기", -1));
@@ -318,19 +252,9 @@ public final class WelcomeApp {
                 boolean unique = isTrue(cellText(row, indexes.getOrDefault("UNIQUE", -1)));
                 String description = normalizeOptional(cellText(row, indexes.getOrDefault("설명", -1)));
 
-                columns.add(new ColumnDefinition(
-                        sequence,
-                        columnName.trim(),
-                        dataType.trim(),
-                        size.trim(),
-                        scale.trim(),
-                        nullable,
-                        defaultValue,
-                        pkOrder,
-                        unique,
-                        description));
+                columns.add(new ColumnDefinition(sequence, columnName.trim().toUpperCase(Locale.ROOT), dataType.trim(),
+                        size.trim(), scale.trim(), nullable, defaultValue, pkOrder, unique, description));
             }
-
             columns.sort(Comparator.comparingInt(ColumnDefinition::sequence));
             return new TableDefinition(tableName, tableDescription.trim(), List.copyOf(columns));
         }
@@ -339,13 +263,9 @@ public final class WelcomeApp {
             int limit = Math.min(sheet.getLastRowNum(), 15);
             for (int rowIndex = 0; rowIndex <= limit; rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
-                if (row == null) {
-                    continue;
-                }
+                if (row == null) continue;
                 Map<String, Integer> indexes = headerIndexes(row);
-                if (indexes.containsKey("컬럼명") && indexes.containsKey("데이터 타입")) {
-                    return rowIndex;
-                }
+                if (indexes.containsKey("컬럼명") && indexes.containsKey("데이터 타입")) return rowIndex;
             }
             return -1;
         }
@@ -353,27 +273,21 @@ public final class WelcomeApp {
         private static Map<String, Integer> headerIndexes(Row row) {
             Map<String, Integer> indexes = new HashMap<>();
             short lastCell = row.getLastCellNum();
-            for (int cellIndex = 0; cellIndex < lastCell; cellIndex++) {
-                String value = cellText(row, cellIndex).trim();
-                if (!value.isBlank()) {
-                    indexes.put(value.toUpperCase(Locale.ROOT), cellIndex);
-                }
+            for (int i = 0; i < lastCell; i++) {
+                String value = cellText(row, i).trim();
+                if (!value.isBlank()) indexes.put(value.toUpperCase(Locale.ROOT), i);
             }
             return indexes;
         }
 
         private static int requiredIndex(Map<String, Integer> indexes, String header) {
             Integer index = indexes.get(header.toUpperCase(Locale.ROOT));
-            if (index == null) {
-                throw new IllegalArgumentException("필수 헤더가 없습니다: " + header);
-            }
+            if (index == null) throw new IllegalArgumentException("필수 헤더가 없습니다: " + header);
             return index;
         }
 
         private static String cellText(Row row, int cellIndex) {
-            if (row == null || cellIndex < 0) {
-                return "";
-            }
+            if (row == null || cellIndex < 0) return "";
             Cell cell = row.getCell(cellIndex);
             return cell == null ? "" : FORMATTER.formatCellValue(cell).trim();
         }
@@ -384,33 +298,20 @@ public final class WelcomeApp {
         }
 
         private static Integer parseNullableInt(String value) {
-            if (value == null || value.isBlank()) {
-                return null;
-            }
-            try {
-                double number = Double.parseDouble(value.replace(",", ""));
-                return (int) number;
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
+            if (value == null || value.isBlank()) return null;
+            try { return (int) Double.parseDouble(value.replace(",", "")); }
+            catch (NumberFormatException ignored) { return null; }
         }
 
         private static boolean isTrue(String value) {
             String normalized = normalizeOptional(value).toUpperCase(Locale.ROOT);
-            return normalized.equals("Y")
-                    || normalized.equals("YES")
-                    || normalized.equals("TRUE")
-                    || normalized.equals("1");
+            return normalized.equals("Y") || normalized.equals("YES") || normalized.equals("TRUE") || normalized.equals("1");
         }
 
         private static String normalizeOptional(String value) {
-            if (value == null) {
-                return "";
-            }
+            if (value == null) return "";
             String trimmed = value.trim();
-            if (isBlankOrPlaceholder(trimmed) || trimmed.equalsIgnoreCase("NULL")) {
-                return "";
-            }
+            if (isBlankOrPlaceholder(trimmed) || trimmed.equalsIgnoreCase("NULL")) return "";
             return trimmed;
         }
 
@@ -420,201 +321,113 @@ public final class WelcomeApp {
     }
 
     private static final class SqlGenerator {
-        private SqlGenerator() {
-        }
+        private SqlGenerator() {}
 
         static String generate(List<TableDefinition> tables, DatabaseType databaseType) {
             StringBuilder sql = new StringBuilder();
             for (int tableIndex = 0; tableIndex < tables.size(); tableIndex++) {
                 TableDefinition table = tables.get(tableIndex);
-                String description = table.description().isBlank() ? table.name() : table.description();
+                String tableName = table.name().toUpperCase(Locale.ROOT);
+                String description = table.description().isBlank() ? tableName : table.description();
                 sql.append("=============== ").append(description).append(" ================\n");
-                sql.append("CREATE TABLE ").append(table.name()).append(" (\n");
+                sql.append("CREATE TABLE ").append(tableName).append(" (\n");
 
                 List<String> definitions = new ArrayList<>();
-                for (ColumnDefinition column : table.columns()) {
-                    definitions.add(columnSql(column, databaseType));
-                }
+                for (ColumnDefinition column : table.columns()) definitions.add(columnSql(column, databaseType));
 
                 List<ColumnDefinition> primaryKeys = table.columns().stream()
                         .filter(column -> column.primaryKeyOrder() != null)
                         .sorted(Comparator.comparingInt(ColumnDefinition::primaryKeyOrder))
                         .toList();
                 if (!primaryKeys.isEmpty()) {
-                    String keyColumns = primaryKeys.stream()
-                            .map(ColumnDefinition::name)
-                            .reduce((left, right) -> left + ", " + right)
-                            .orElse("");
-                    definitions.add("    PRIMARY KEY (" + keyColumns + ")");
+                    definitions.add("    PRIMARY KEY (" + String.join(", ", primaryKeys.stream()
+                            .map(column -> column.name().toUpperCase(Locale.ROOT)).toList()) + ")");
                 }
 
                 sql.append(String.join(",\n", definitions));
                 sql.append("\n);\n");
-                if (tableIndex < tables.size() - 1) {
-                    sql.append("\n");
-                }
+                if (tableIndex < tables.size() - 1) sql.append("\n\n");
             }
             return sql.toString();
         }
 
         private static String columnSql(ColumnDefinition column, DatabaseType databaseType) {
-            StringBuilder definition = new StringBuilder("    ");
-            definition.append(column.name())
-                    .append(' ')
-                    .append(mapType(column, databaseType));
-
-            String defaultValue = mapDefault(column.defaultValue(), databaseType);
-            if (!defaultValue.isBlank()) {
-                definition.append(" DEFAULT ").append(defaultValue);
-            }
-            if (!column.nullable()) {
-                definition.append(" NOT NULL");
-            }
-            if (column.unique()) {
-                definition.append(" UNIQUE");
-            }
-            return definition.toString();
+            StringBuilder sql = new StringBuilder("    ");
+            sql.append(column.name().toUpperCase(Locale.ROOT)).append(' ')
+                    .append(convertType(column, databaseType));
+            if (!column.nullable()) sql.append(" NOT NULL");
+            if (!column.defaultValue().isBlank()) sql.append(" DEFAULT ").append(column.defaultValue());
+            if (column.unique()) sql.append(" UNIQUE");
+            return sql.toString();
         }
 
-        private static String mapType(ColumnDefinition column, DatabaseType databaseType) {
-            String baseType = baseType(column.dataType());
-            return switch (databaseType) {
-                case MYSQL -> mysqlType(baseType, column.size(), column.scale());
-                case ORACLE -> oracleType(baseType, column.size(), column.scale());
-                case MSSQL -> mssqlType(baseType, column.size(), column.scale());
+        private static String convertType(ColumnDefinition column, DatabaseType db) {
+            String type = column.dataType().trim().toUpperCase(Locale.ROOT);
+            String size = digits(column.size());
+            String scale = digits(column.scale());
+
+            return switch (db) {
+                case MYSQL -> mysqlType(type, size, scale);
+                case ORACLE -> oracleType(type, size, scale);
+                case MSSQL -> mssqlType(type, size, scale);
             };
         }
 
         private static String mysqlType(String type, String size, String scale) {
-            return switch (type) {
-                case "VARCHAR", "VARCHAR2", "NVARCHAR", "NVARCHAR2" -> sized("VARCHAR", size, "255");
-                case "CHAR", "NCHAR" -> sized("CHAR", size, "1");
-                case "INT", "INTEGER" -> "INT";
-                case "BIGINT" -> "BIGINT";
-                case "SMALLINT" -> "SMALLINT";
-                case "TINYINT" -> "TINYINT";
-                case "DECIMAL", "NUMERIC", "NUMBER" -> decimalType("DECIMAL", size, scale);
-                case "DATETIME" -> "DATETIME";
-                case "TIMESTAMP" -> "TIMESTAMP";
-                case "DATE" -> "DATE";
-                case "BOOLEAN", "BIT" -> "BOOLEAN";
-                case "TEXT", "CLOB", "LONGTEXT" -> "TEXT";
-                case "BLOB", "BINARY", "VARBINARY" -> "BLOB";
-                case "DOUBLE", "BINARY_DOUBLE" -> "DOUBLE";
-                case "FLOAT", "REAL", "BINARY_FLOAT" -> "FLOAT";
-                default -> originalOrSized(type, size, scale);
-            };
+            if (type.contains("CHAR") || type.equals("STRING")) return withSize(type.startsWith("N") ? "VARCHAR" : "VARCHAR", size, "255");
+            if (type.equals("NUMBER") || type.equals("NUMERIC") || type.equals("DECIMAL")) return decimal("DECIMAL", size, scale);
+            if (type.equals("INTEGER") || type.equals("INT")) return "INT";
+            if (type.equals("BIGINT") || type.equals("LONG")) return "BIGINT";
+            if (type.equals("DATE")) return "DATE";
+            if (type.contains("TIMESTAMP") || type.equals("DATETIME")) return "DATETIME";
+            if (type.equals("CLOB") || type.equals("TEXT")) return "TEXT";
+            if (type.equals("BLOB") || type.equals("BINARY")) return "BLOB";
+            return appendOriginalSize(type, size, scale);
         }
 
         private static String oracleType(String type, String size, String scale) {
-            return switch (type) {
-                case "VARCHAR", "VARCHAR2" -> sized("VARCHAR2", size, "255");
-                case "NVARCHAR", "NVARCHAR2" -> sized("NVARCHAR2", size, "255");
-                case "CHAR" -> sized("CHAR", size, "1");
-                case "NCHAR" -> sized("NCHAR", size, "1");
-                case "INT", "INTEGER", "SMALLINT", "TINYINT" -> "NUMBER(10)";
-                case "BIGINT" -> "NUMBER(19)";
-                case "DECIMAL", "NUMERIC", "NUMBER" -> decimalType("NUMBER", size, scale);
-                case "DATETIME", "TIMESTAMP" -> "TIMESTAMP";
-                case "DATE" -> "DATE";
-                case "BOOLEAN", "BIT" -> "NUMBER(1)";
-                case "TEXT", "CLOB", "LONGTEXT" -> "CLOB";
-                case "BLOB", "BINARY", "VARBINARY" -> "BLOB";
-                case "DOUBLE", "BINARY_DOUBLE" -> "BINARY_DOUBLE";
-                case "FLOAT", "REAL", "BINARY_FLOAT" -> "BINARY_FLOAT";
-                default -> originalOrSized(type, size, scale);
-            };
+            if (type.equals("VARCHAR") || type.equals("VARCHAR2") || type.equals("STRING")) return withSize("VARCHAR2", size, "255");
+            if (type.equals("NVARCHAR") || type.equals("NVARCHAR2")) return withSize("NVARCHAR2", size, "255");
+            if (type.equals("CHAR") || type.equals("NCHAR")) return withSize(type, size, "1");
+            if (type.equals("NUMBER") || type.equals("NUMERIC") || type.equals("DECIMAL")) return decimal("NUMBER", size, scale);
+            if (type.equals("INTEGER") || type.equals("INT") || type.equals("BIGINT") || type.equals("LONG")) return "NUMBER";
+            if (type.equals("DATETIME")) return "TIMESTAMP";
+            if (type.equals("TEXT")) return "CLOB";
+            if (type.equals("BINARY")) return "BLOB";
+            return appendOriginalSize(type, size, scale);
         }
 
         private static String mssqlType(String type, String size, String scale) {
-            return switch (type) {
-                case "VARCHAR", "VARCHAR2" -> sized("VARCHAR", size, "255");
-                case "NVARCHAR", "NVARCHAR2" -> sized("NVARCHAR", size, "255");
-                case "CHAR" -> sized("CHAR", size, "1");
-                case "NCHAR" -> sized("NCHAR", size, "1");
-                case "INT", "INTEGER" -> "INT";
-                case "BIGINT" -> "BIGINT";
-                case "SMALLINT" -> "SMALLINT";
-                case "TINYINT" -> "TINYINT";
-                case "DECIMAL", "NUMERIC", "NUMBER" -> decimalType("DECIMAL", size, scale);
-                case "DATETIME", "TIMESTAMP" -> "DATETIME2";
-                case "DATE" -> "DATE";
-                case "BOOLEAN", "BIT" -> "BIT";
-                case "TEXT", "CLOB", "LONGTEXT" -> "VARCHAR(MAX)";
-                case "BLOB", "BINARY", "VARBINARY" -> "VARBINARY(MAX)";
-                case "DOUBLE", "BINARY_DOUBLE", "FLOAT" -> "FLOAT";
-                case "REAL", "BINARY_FLOAT" -> "REAL";
-                default -> originalOrSized(type, size, scale);
-            };
+            if (type.equals("VARCHAR") || type.equals("VARCHAR2") || type.equals("STRING")) return withSize("VARCHAR", size, "255");
+            if (type.equals("NVARCHAR") || type.equals("NVARCHAR2")) return withSize("NVARCHAR", size, "255");
+            if (type.equals("NUMBER") || type.equals("NUMERIC") || type.equals("DECIMAL")) return decimal("DECIMAL", size, scale);
+            if (type.equals("INTEGER")) return "INT";
+            if (type.equals("LONG")) return "BIGINT";
+            if (type.equals("DATE")) return "DATE";
+            if (type.equals("TIMESTAMP")) return "DATETIME2";
+            if (type.equals("CLOB") || type.equals("TEXT")) return "VARCHAR(MAX)";
+            if (type.equals("BLOB") || type.equals("BINARY")) return "VARBINARY(MAX)";
+            return appendOriginalSize(type, size, scale);
         }
 
-        private static String baseType(String rawType) {
-            String normalized = rawType == null ? "" : rawType.trim().toUpperCase(Locale.ROOT);
-            int parenthesis = normalized.indexOf('(');
-            if (parenthesis >= 0) {
-                normalized = normalized.substring(0, parenthesis).trim();
-            }
-            return normalized;
+        private static String withSize(String type, String size, String fallback) {
+            return type + "(" + (size.isBlank() ? fallback : size) + ")";
         }
 
-        private static String sized(String type, String size, String defaultSize) {
-            String actualSize = numericPart(size);
-            if (actualSize.isBlank()) {
-                actualSize = defaultSize;
-            }
-            return type + "(" + actualSize + ")";
+        private static String decimal(String type, String size, String scale) {
+            if (size.isBlank()) return type;
+            return scale.isBlank() ? type + "(" + size + ")" : type + "(" + size + "," + scale + ")";
         }
 
-        private static String decimalType(String type, String size, String scale) {
-            String precision = numericPart(size);
-            String decimalScale = numericPart(scale);
-            if (precision.isBlank()) {
-                precision = "38";
-            }
-            if (decimalScale.isBlank()) {
-                return type + "(" + precision + ")";
-            }
-            return type + "(" + precision + "," + decimalScale + ")";
+        private static String appendOriginalSize(String type, String size, String scale) {
+            if (size.isBlank()) return type;
+            return scale.isBlank() ? type + "(" + size + ")" : type + "(" + size + "," + scale + ")";
         }
 
-        private static String originalOrSized(String type, String size, String scale) {
-            if (!numericPart(scale).isBlank()) {
-                return decimalType(type, size, scale);
-            }
-            String length = numericPart(size);
-            return length.isBlank() ? type : type + "(" + length + ")";
-        }
-
-        private static String numericPart(String value) {
-            if (value == null || value.isBlank()) {
-                return "";
-            }
-            String normalized = value.trim();
-            try {
-                double number = Double.parseDouble(normalized.replace(",", ""));
-                long whole = (long) number;
-                return String.valueOf(whole);
-            } catch (NumberFormatException ignored) {
-                return normalized.replaceAll("[^0-9]", "");
-            }
-        }
-
-        private static String mapDefault(String value, DatabaseType databaseType) {
-            if (value == null || value.isBlank()) {
-                return "";
-            }
-
+        private static String digits(String value) {
+            if (value == null) return "";
             String trimmed = value.trim();
-            String lower = trimmed.toLowerCase(Locale.ROOT).replace(" ", "");
-            if (lower.equals("current_timestamp()") || lower.equals("current_timestamp") || lower.equals("now()")) {
-                return "CURRENT_TIMESTAMP";
-            }
-            if (trimmed.equalsIgnoreCase("true")) {
-                return databaseType == DatabaseType.MYSQL ? "TRUE" : "1";
-            }
-            if (trimmed.equalsIgnoreCase("false")) {
-                return databaseType == DatabaseType.MYSQL ? "FALSE" : "0";
-            }
+            if (trimmed.endsWith(".0")) trimmed = trimmed.substring(0, trimmed.length() - 2);
             return trimmed;
         }
     }

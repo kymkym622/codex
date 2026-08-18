@@ -59,7 +59,7 @@ public final class WelcomeApp {
         public void start(Stage stage) {
             Label title = new Label("DB CREATE문 생성기");
             title.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
-            Label description = new Label("엑셀의 테이블 정보를 읽어 MySQL / Oracle / MSSQL용 CREATE문을 생성합니다.");
+            Label description = new Label("엑셀의 테이블 정보를 읽어 MySQL / Oracle / PostgreSQL용 CREATE문을 생성합니다.");
             description.setStyle("-fx-text-fill: #555555;");
 
             Button fileButton = new Button("엑셀 파일 선택");
@@ -196,7 +196,7 @@ public final class WelcomeApp {
     }
 
     private enum DatabaseType {
-        MYSQL("MySQL"), ORACLE("Oracle"), MSSQL("MSSQL");
+        MYSQL("MySQL"), ORACLE("Oracle"), POSTGRES("PostgreSQL");
         private final String label;
         DatabaseType(String label) { this.label = label; }
         @Override public String toString() { return label; }
@@ -230,10 +230,10 @@ public final class WelcomeApp {
             int nameIndex = requiredIndex(indexes, "컬럼명");
             int typeIndex = requiredIndex(indexes, "데이터 타입");
 
-            String tableName = sheet.getSheetName().trim().toUpperCase(Locale.ROOT);
+            String tableName = sheet.getSheetName().trim();
             String tableDescription = normalizeOptional(cellText(sheet.getRow(0), 0));
-
             List<ColumnDefinition> columns = new ArrayList<>();
+
             for (int rowIndex = headerRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
                 if (row == null) continue;
@@ -251,8 +251,8 @@ public final class WelcomeApp {
                 boolean unique = isTrue(cellText(row, indexes.getOrDefault("UNIQUE", -1)));
                 String description = normalizeOptional(cellText(row, indexes.getOrDefault("설명", -1)));
 
-                columns.add(new ColumnDefinition(sequence, columnName.trim().toUpperCase(Locale.ROOT), dataType.trim(),
-                        size.trim(), scale.trim(), nullable, defaultValue, pkOrder, unique, description));
+                columns.add(new ColumnDefinition(sequence, columnName.trim(), dataType.trim(), size.trim(), scale.trim(),
+                        nullable, defaultValue, pkOrder, unique, description));
             }
             columns.sort(Comparator.comparingInt(ColumnDefinition::sequence));
             return new TableDefinition(tableName, tableDescription, List.copyOf(columns));
@@ -322,146 +322,134 @@ public final class WelcomeApp {
     private static final class SqlGenerator {
         private SqlGenerator() {}
 
-        static String generate(List<TableDefinition> tables, DatabaseType databaseType) {
+        static String generate(List<TableDefinition> tables, DatabaseType db) {
             StringBuilder sql = new StringBuilder();
             for (int tableIndex = 0; tableIndex < tables.size(); tableIndex++) {
                 TableDefinition table = tables.get(tableIndex);
-                String tableName = table.name().toUpperCase(Locale.ROOT);
+                String tableName = identifier(table.name(), db);
                 String separatorDescription = table.description().isBlank() ? tableName : table.description();
+                String create = db == DatabaseType.POSTGRES ? "create table " : "CREATE TABLE ";
+                String primary = db == DatabaseType.POSTGRES ? "primary key" : "PRIMARY KEY";
+
                 sql.append("=============== ").append(separatorDescription).append(" ================\n");
-                sql.append("CREATE TABLE ").append(tableName).append(" (\n");
+                sql.append(create).append(tableName).append(" (\n");
 
                 List<String> definitions = new ArrayList<>();
-                for (ColumnDefinition column : table.columns()) definitions.add(columnSql(column, databaseType));
+                for (ColumnDefinition column : table.columns()) definitions.add(columnSql(column, db));
 
                 List<ColumnDefinition> primaryKeys = table.columns().stream()
                         .filter(column -> column.primaryKeyOrder() != null)
                         .sorted(Comparator.comparingInt(ColumnDefinition::primaryKeyOrder))
                         .toList();
                 if (!primaryKeys.isEmpty()) {
-                    definitions.add("    PRIMARY KEY (" + String.join(", ", primaryKeys.stream()
-                            .map(column -> column.name().toUpperCase(Locale.ROOT)).toList()) + ")");
+                    definitions.add("    " + primary + " (" + String.join(", ", primaryKeys.stream()
+                            .map(column -> identifier(column.name(), db)).toList()) + ")");
                 }
 
                 sql.append(String.join(",\n", definitions));
                 sql.append("\n);\n\n");
-                appendComments(sql, table, databaseType);
+                appendComments(sql, table, db);
                 if (tableIndex < tables.size() - 1) sql.append("\n\n");
             }
             return sql.toString();
         }
 
-        private static void appendComments(StringBuilder sql, TableDefinition table, DatabaseType databaseType) {
-            String tableName = table.name().toUpperCase(Locale.ROOT);
+        private static String columnSql(ColumnDefinition column, DatabaseType db) {
+            boolean postgres = db == DatabaseType.POSTGRES;
+            StringBuilder sql = new StringBuilder("    ");
+            sql.append(identifier(column.name(), db)).append(' ').append(convertType(column, db));
+            if (!column.nullable()) sql.append(postgres ? " not null" : " NOT NULL");
+            if (!column.defaultValue().isBlank()) sql.append(postgres ? " default " : " DEFAULT ").append(column.defaultValue());
+            if (column.unique()) sql.append(postgres ? " unique" : " UNIQUE");
+            return sql.toString();
+        }
+
+        private static void appendComments(StringBuilder sql, TableDefinition table, DatabaseType db) {
+            String tableName = identifier(table.name(), db);
             String tableDescription = escapeSqlString(table.description());
 
-            switch (databaseType) {
-                case MYSQL -> {
-                    sql.append("ALTER TABLE ").append(tableName)
-                            .append(" COMMENT = '").append(tableDescription).append("';\n");
-                    for (ColumnDefinition column : table.columns()) {
-                        sql.append("ALTER TABLE ").append(tableName).append(" MODIFY COLUMN ")
-                                .append(columnSql(column, databaseType).trim())
-                                .append(" COMMENT '").append(escapeSqlString(column.description())).append("';\n");
-                    }
+            if (db == DatabaseType.MYSQL) {
+                sql.append("ALTER TABLE ").append(tableName).append(" COMMENT = '").append(tableDescription).append("';\n");
+                for (ColumnDefinition column : table.columns()) {
+                    sql.append("ALTER TABLE ").append(tableName).append(" MODIFY COLUMN ")
+                            .append(columnSql(column, db).trim())
+                            .append(" COMMENT '").append(escapeSqlString(column.description())).append("';\n");
                 }
-                case ORACLE -> {
-                    sql.append("COMMENT ON TABLE ").append(tableName)
-                            .append(" IS '").append(tableDescription).append("';\n");
-                    for (ColumnDefinition column : table.columns()) {
-                        sql.append("COMMENT ON COLUMN ").append(tableName).append('.')
-                                .append(column.name().toUpperCase(Locale.ROOT))
-                                .append(" IS '").append(escapeSqlString(column.description())).append("';\n");
-                    }
-                }
-                case MSSQL -> {
-                    sql.append("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'")
-                            .append(tableDescription)
-                            .append("', @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'")
-                            .append(tableName).append("';\n");
-                    for (ColumnDefinition column : table.columns()) {
-                        sql.append("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'")
-                                .append(escapeSqlString(column.description()))
-                                .append("', @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'")
-                                .append(tableName)
-                                .append("', @level2type=N'COLUMN', @level2name=N'")
-                                .append(column.name().toUpperCase(Locale.ROOT)).append("';\n");
-                    }
-                }
+                return;
+            }
+
+            boolean postgres = db == DatabaseType.POSTGRES;
+            String commentOnTable = postgres ? "comment on table " : "COMMENT ON TABLE ";
+            String commentOnColumn = postgres ? "comment on column " : "COMMENT ON COLUMN ";
+            String is = postgres ? " is '" : " IS '";
+
+            sql.append(commentOnTable).append(tableName).append(is).append(tableDescription).append("';\n");
+            for (ColumnDefinition column : table.columns()) {
+                sql.append(commentOnColumn).append(tableName).append('.')
+                        .append(identifier(column.name(), db)).append(is)
+                        .append(escapeSqlString(column.description())).append("';\n");
             }
         }
 
-        private static String escapeSqlString(String value) {
-            if (value == null || value.isBlank()) return "";
-            return value.replace("'", "''");
-        }
-
-        private static String columnSql(ColumnDefinition column, DatabaseType databaseType) {
-            StringBuilder sql = new StringBuilder("    ");
-            sql.append(column.name().toUpperCase(Locale.ROOT)).append(' ')
-                    .append(convertType(column, databaseType));
-            if (!column.nullable()) sql.append(" NOT NULL");
-            if (!column.defaultValue().isBlank()) sql.append(" DEFAULT ").append(column.defaultValue());
-            if (column.unique()) sql.append(" UNIQUE");
-            return sql.toString();
+        private static String identifier(String value, DatabaseType db) {
+            if (db == DatabaseType.POSTGRES) return value.trim().toLowerCase(Locale.ROOT);
+            return value.trim().toUpperCase(Locale.ROOT);
         }
 
         private static String convertType(ColumnDefinition column, DatabaseType db) {
             String type = column.dataType().trim().toUpperCase(Locale.ROOT);
             String size = digits(column.size());
             String scale = digits(column.scale());
-
             return switch (db) {
                 case MYSQL -> mysqlType(type, size, scale);
                 case ORACLE -> oracleType(type, size, scale);
-                case MSSQL -> mssqlType(type, size, scale);
+                case POSTGRES -> postgresType(type, size, scale);
             };
         }
 
         private static String mysqlType(String type, String size, String scale) {
+            if (isNumeric(type)) return "INT";
+            if (isDate(type)) return "DATE";
             if (type.contains("CHAR") || type.equals("STRING")) return withSize("VARCHAR", size, "255");
-            if (type.equals("NUMBER") || type.equals("NUMERIC") || type.equals("DECIMAL")) return decimal("DECIMAL", size, scale);
-            if (type.equals("INTEGER") || type.equals("INT")) return "INT";
-            if (type.equals("BIGINT") || type.equals("LONG")) return "BIGINT";
-            if (type.equals("DATE")) return "DATE";
-            if (type.contains("TIMESTAMP") || type.equals("DATETIME")) return "DATETIME";
             if (type.equals("CLOB") || type.equals("TEXT")) return "TEXT";
             if (type.equals("BLOB") || type.equals("BINARY")) return "BLOB";
+            if (type.contains("TIMESTAMP") || type.equals("DATETIME")) return "DATETIME";
             return appendOriginalSize(type, size, scale);
         }
 
         private static String oracleType(String type, String size, String scale) {
+            if (isNumeric(type)) return "NUMBER";
+            if (isDate(type)) return "DATE";
             if (type.equals("VARCHAR") || type.equals("VARCHAR2") || type.equals("STRING")) return withSize("VARCHAR2", size, "255");
             if (type.equals("NVARCHAR") || type.equals("NVARCHAR2")) return withSize("NVARCHAR2", size, "255");
             if (type.equals("CHAR") || type.equals("NCHAR")) return withSize(type, size, "1");
-            if (type.equals("NUMBER") || type.equals("NUMERIC") || type.equals("DECIMAL")) return decimal("NUMBER", size, scale);
-            if (type.equals("INTEGER") || type.equals("INT") || type.equals("BIGINT") || type.equals("LONG")) return "NUMBER";
-            if (type.equals("DATETIME")) return "TIMESTAMP";
+            if (type.equals("DATETIME") || type.contains("TIMESTAMP")) return "TIMESTAMP";
             if (type.equals("TEXT")) return "CLOB";
             if (type.equals("BINARY")) return "BLOB";
             return appendOriginalSize(type, size, scale);
         }
 
-        private static String mssqlType(String type, String size, String scale) {
-            if (type.equals("VARCHAR") || type.equals("VARCHAR2") || type.equals("STRING")) return withSize("VARCHAR", size, "255");
-            if (type.equals("NVARCHAR") || type.equals("NVARCHAR2")) return withSize("NVARCHAR", size, "255");
-            if (type.equals("NUMBER") || type.equals("NUMERIC") || type.equals("DECIMAL")) return decimal("DECIMAL", size, scale);
-            if (type.equals("INTEGER")) return "INT";
-            if (type.equals("LONG")) return "BIGINT";
-            if (type.equals("DATE")) return "DATE";
-            if (type.equals("TIMESTAMP")) return "DATETIME2";
-            if (type.equals("CLOB") || type.equals("TEXT")) return "VARCHAR(MAX)";
-            if (type.equals("BLOB") || type.equals("BINARY")) return "VARBINARY(MAX)";
-            return appendOriginalSize(type, size, scale);
+        private static String postgresType(String type, String size, String scale) {
+            if (isNumeric(type)) return "integer";
+            if (isDate(type) || type.equals("DATETIME") || type.contains("TIMESTAMP")) return "timestamp";
+            if (type.contains("CHAR") || type.equals("STRING")) return withSize("varchar", size, "255");
+            if (type.equals("CLOB") || type.equals("TEXT")) return "text";
+            if (type.equals("BLOB") || type.equals("BINARY")) return "bytea";
+            return appendOriginalSize(type.toLowerCase(Locale.ROOT), size, scale);
+        }
+
+        private static boolean isNumeric(String type) {
+            return type.equals("NUMBER") || type.equals("NUMERIC") || type.equals("DECIMAL")
+                    || type.equals("INTEGER") || type.equals("INT") || type.equals("BIGINT") || type.equals("LONG")
+                    || type.equals("SMALLINT") || type.equals("TINYINT");
+        }
+
+        private static boolean isDate(String type) {
+            return type.equals("DATE");
         }
 
         private static String withSize(String type, String size, String fallback) {
             return type + "(" + (size.isBlank() ? fallback : size) + ")";
-        }
-
-        private static String decimal(String type, String size, String scale) {
-            if (size.isBlank()) return type;
-            return scale.isBlank() ? type + "(" + size + ")" : type + "(" + size + "," + scale + ")";
         }
 
         private static String appendOriginalSize(String type, String size, String scale) {
@@ -474,6 +462,11 @@ public final class WelcomeApp {
             String trimmed = value.trim();
             if (trimmed.endsWith(".0")) trimmed = trimmed.substring(0, trimmed.length() - 2);
             return trimmed;
+        }
+
+        private static String escapeSqlString(String value) {
+            if (value == null || value.isBlank()) return "";
+            return value.replace("'", "''");
         }
     }
 }

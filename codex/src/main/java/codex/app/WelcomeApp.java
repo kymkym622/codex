@@ -231,8 +231,7 @@ public final class WelcomeApp {
             int typeIndex = requiredIndex(indexes, "데이터 타입");
 
             String tableName = sheet.getSheetName().trim().toUpperCase(Locale.ROOT);
-            String tableDescription = cellText(sheet.getRow(0), 0);
-            if (isBlankOrPlaceholder(tableDescription)) tableDescription = tableName;
+            String tableDescription = normalizeOptional(cellText(sheet.getRow(0), 0));
 
             List<ColumnDefinition> columns = new ArrayList<>();
             for (int rowIndex = headerRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
@@ -256,7 +255,7 @@ public final class WelcomeApp {
                         size.trim(), scale.trim(), nullable, defaultValue, pkOrder, unique, description));
             }
             columns.sort(Comparator.comparingInt(ColumnDefinition::sequence));
-            return new TableDefinition(tableName, tableDescription.trim(), List.copyOf(columns));
+            return new TableDefinition(tableName, tableDescription, List.copyOf(columns));
         }
 
         private static int findHeaderRow(Sheet sheet) {
@@ -328,8 +327,8 @@ public final class WelcomeApp {
             for (int tableIndex = 0; tableIndex < tables.size(); tableIndex++) {
                 TableDefinition table = tables.get(tableIndex);
                 String tableName = table.name().toUpperCase(Locale.ROOT);
-                String description = table.description().isBlank() ? tableName : table.description();
-                sql.append("=============== ").append(description).append(" ================\n");
+                String separatorDescription = table.description().isBlank() ? tableName : table.description();
+                sql.append("=============== ").append(separatorDescription).append(" ================\n");
                 sql.append("CREATE TABLE ").append(tableName).append(" (\n");
 
                 List<String> definitions = new ArrayList<>();
@@ -345,10 +344,56 @@ public final class WelcomeApp {
                 }
 
                 sql.append(String.join(",\n", definitions));
-                sql.append("\n);\n");
+                sql.append("\n);\n\n");
+                appendComments(sql, table, databaseType);
                 if (tableIndex < tables.size() - 1) sql.append("\n\n");
             }
             return sql.toString();
+        }
+
+        private static void appendComments(StringBuilder sql, TableDefinition table, DatabaseType databaseType) {
+            String tableName = table.name().toUpperCase(Locale.ROOT);
+            String tableDescription = escapeSqlString(table.description());
+
+            switch (databaseType) {
+                case MYSQL -> {
+                    sql.append("ALTER TABLE ").append(tableName)
+                            .append(" COMMENT = '").append(tableDescription).append("';\n");
+                    for (ColumnDefinition column : table.columns()) {
+                        sql.append("ALTER TABLE ").append(tableName).append(" MODIFY COLUMN ")
+                                .append(columnSql(column, databaseType).trim())
+                                .append(" COMMENT '").append(escapeSqlString(column.description())).append("';\n");
+                    }
+                }
+                case ORACLE -> {
+                    sql.append("COMMENT ON TABLE ").append(tableName)
+                            .append(" IS '").append(tableDescription).append("';\n");
+                    for (ColumnDefinition column : table.columns()) {
+                        sql.append("COMMENT ON COLUMN ").append(tableName).append('.')
+                                .append(column.name().toUpperCase(Locale.ROOT))
+                                .append(" IS '").append(escapeSqlString(column.description())).append("';\n");
+                    }
+                }
+                case MSSQL -> {
+                    sql.append("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'")
+                            .append(tableDescription)
+                            .append("', @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'")
+                            .append(tableName).append("';\n");
+                    for (ColumnDefinition column : table.columns()) {
+                        sql.append("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'")
+                                .append(escapeSqlString(column.description()))
+                                .append("', @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'")
+                                .append(tableName)
+                                .append("', @level2type=N'COLUMN', @level2name=N'")
+                                .append(column.name().toUpperCase(Locale.ROOT)).append("';\n");
+                    }
+                }
+            }
+        }
+
+        private static String escapeSqlString(String value) {
+            if (value == null || value.isBlank()) return "";
+            return value.replace("'", "''");
         }
 
         private static String columnSql(ColumnDefinition column, DatabaseType databaseType) {
@@ -374,7 +419,7 @@ public final class WelcomeApp {
         }
 
         private static String mysqlType(String type, String size, String scale) {
-            if (type.contains("CHAR") || type.equals("STRING")) return withSize(type.startsWith("N") ? "VARCHAR" : "VARCHAR", size, "255");
+            if (type.contains("CHAR") || type.equals("STRING")) return withSize("VARCHAR", size, "255");
             if (type.equals("NUMBER") || type.equals("NUMERIC") || type.equals("DECIMAL")) return decimal("DECIMAL", size, scale);
             if (type.equals("INTEGER") || type.equals("INT")) return "INT";
             if (type.equals("BIGINT") || type.equals("LONG")) return "BIGINT";

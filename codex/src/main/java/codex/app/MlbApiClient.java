@@ -14,6 +14,37 @@ import java.util.Map;
 
 final class MlbApiClient {
     private static final String API_ROOT = "https://statsapi.mlb.com/api/v1";
+    private static final List<Team> MLB_TEAMS = List.of(
+            new Team(108, "Los Angeles Angels"),
+            new Team(109, "Arizona Diamondbacks"),
+            new Team(110, "Baltimore Orioles"),
+            new Team(111, "Boston Red Sox"),
+            new Team(112, "Chicago Cubs"),
+            new Team(113, "Cincinnati Reds"),
+            new Team(114, "Cleveland Guardians"),
+            new Team(115, "Colorado Rockies"),
+            new Team(116, "Detroit Tigers"),
+            new Team(117, "Houston Astros"),
+            new Team(118, "Kansas City Royals"),
+            new Team(119, "Los Angeles Dodgers"),
+            new Team(120, "Washington Nationals"),
+            new Team(121, "New York Mets"),
+            new Team(133, "Athletics"),
+            new Team(134, "Pittsburgh Pirates"),
+            new Team(135, "San Diego Padres"),
+            new Team(136, "Seattle Mariners"),
+            new Team(137, "San Francisco Giants"),
+            new Team(138, "St. Louis Cardinals"),
+            new Team(139, "Tampa Bay Rays"),
+            new Team(140, "Texas Rangers"),
+            new Team(141, "Toronto Blue Jays"),
+            new Team(142, "Minnesota Twins"),
+            new Team(143, "Philadelphia Phillies"),
+            new Team(144, "Atlanta Braves"),
+            new Team(145, "Chicago White Sox"),
+            new Team(146, "Miami Marlins"),
+            new Team(147, "New York Yankees"),
+            new Team(158, "Milwaukee Brewers"));
 
     private final HttpClient httpClient;
 
@@ -23,15 +54,10 @@ final class MlbApiClient {
                 .build();
     }
 
-    List<Team> loadTeams() throws IOException, InterruptedException {
-        Map<String, Object> root = object(get("/teams?sportId=1&activeStatus=Y"));
-        List<Team> teams = new ArrayList<>();
-        for (Object item : array(root.get("teams"))) {
-            Map<String, Object> team = object(item);
-            teams.add(new Team(integer(team.get("id")), text(team.get("name"))));
-        }
-        teams.sort(Comparator.comparing(Team::name));
-        return List.copyOf(teams);
+    static List<Team> teams() {
+        return MLB_TEAMS.stream()
+                .sorted(Comparator.comparing(Team::name))
+                .toList();
     }
 
     List<Player> loadActiveRoster(int teamId) throws IOException, InterruptedException {

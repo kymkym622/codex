@@ -50,9 +50,8 @@ public final class WelcomeApp {
             Label subtitle = new Label("팀과 현재 1군 선수를 선택하세요.");
             subtitle.getStyleClass().add("subtitle");
 
-            configureSelector(teamSelector, "팀 불러오는 중...");
+            configureSelector(teamSelector, "팀 선택");
             configureSelector(playerSelector, "팀을 먼저 선택하세요.");
-            teamSelector.setDisable(true);
             playerSelector.setDisable(true);
 
             teamSelector.valueProperty().addListener((observable, oldTeam, team) -> {
@@ -114,13 +113,8 @@ public final class WelcomeApp {
         }
 
         private void loadTeams() {
-            setLoading("MLB 팀 목록을 불러오는 중...");
-            runAsync(api::loadTeams, teams -> {
-                teamSelector.getItems().setAll(teams);
-                teamSelector.setPromptText("팀 선택");
-                teamSelector.setDisable(false);
-                setReady("팀을 선택하세요.");
-            });
+            teamSelector.getItems().setAll(MlbApiClient.teams());
+            setReady("팀을 선택하면 현재 1군 선수를 불러옵니다.");
         }
 
         private void loadRoster(Team team) {

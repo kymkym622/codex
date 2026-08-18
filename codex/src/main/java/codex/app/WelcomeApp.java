@@ -1,20 +1,26 @@
 package codex.app;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
 
+import codex.app.MlbApiClient.Player;
+import codex.app.MlbApiClient.PlayerDetails;
+import codex.app.MlbApiClient.StatLine;
+import codex.app.MlbApiClient.Team;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -29,92 +35,291 @@ public final class WelcomeApp {
     }
 
     public static final class FxApplication extends Application {
-        private final VBox fieldsBox = new VBox(10);
-        private final List<TextField> textFields = new ArrayList<>();
+        private final MlbApiClient api = new MlbApiClient();
+        private final ComboBox<Team> teamSelector = new ComboBox<>();
+        private final ComboBox<Player> playerSelector = new ComboBox<>();
+        private final ProgressIndicator progress = new ProgressIndicator();
+        private final Label status = new Label();
+        private final VBox detailsBox = new VBox(18);
+        private long requestVersion;
 
         @Override
         public void start(Stage stage) {
-            Label heading = new Label("무작위 텍스트 뽑기");
-            heading.getStyleClass().add("heading");
+            Label title = new Label("MLB 선수 정보");
+            title.getStyleClass().add("title");
+            Label subtitle = new Label("팀과 현재 1군 선수를 선택하세요.");
+            subtitle.getStyleClass().add("subtitle");
 
-            ComboBox<Integer> countSelector = new ComboBox<>();
-            countSelector.getItems().addAll(PickerModel.countOptions());
-            countSelector.setValue(PickerModel.MIN_COUNT);
-            countSelector.setMaxWidth(Double.MAX_VALUE);
-            countSelector.valueProperty().addListener((observable, oldValue, newValue) -> {
-                if (newValue != null) {
-                    rebuildTextFields(newValue);
+            configureSelector(teamSelector, "팀 불러오는 중...");
+            configureSelector(playerSelector, "팀을 먼저 선택하세요.");
+            teamSelector.setDisable(true);
+            playerSelector.setDisable(true);
+
+            teamSelector.valueProperty().addListener((observable, oldTeam, team) -> {
+                if (team != null) {
+                    loadRoster(team);
+                }
+            });
+            playerSelector.valueProperty().addListener((observable, oldPlayer, player) -> {
+                if (player != null) {
+                    loadPlayer(player);
                 }
             });
 
-            HBox selectorRow = new HBox(12, new Label("입력칸 개수"), countSelector);
-            selectorRow.setAlignment(Pos.CENTER_LEFT);
-            HBox.setHgrow(countSelector, Priority.ALWAYS);
+            GridPane selectors = new GridPane();
+            selectors.setHgap(14);
+            selectors.setVgap(12);
+            selectors.add(new Label("팀"), 0, 0);
+            selectors.add(teamSelector, 1, 0);
+            selectors.add(new Label("현재 1군 선수"), 0, 1);
+            selectors.add(playerSelector, 1, 1);
+            GridPane.setHgrow(teamSelector, Priority.ALWAYS);
+            GridPane.setHgrow(playerSelector, Priority.ALWAYS);
+            selectors.getStyleClass().add("selector-card");
 
-            fieldsBox.setPadding(new Insets(4, 8, 4, 0));
+            progress.setMaxSize(20, 20);
+            progress.setVisible(false);
+            status.getStyleClass().add("status");
+            HBox statusRow = new HBox(10, progress, status);
+            statusRow.setAlignment(Pos.CENTER_LEFT);
 
-            ScrollPane scrollPane = new ScrollPane(fieldsBox);
+            detailsBox.getStyleClass().add("details-card");
+            showPlaceholder("선수를 선택하면 정보가 표시됩니다.");
+
+            ScrollPane scrollPane = new ScrollPane(detailsBox);
             scrollPane.setFitToWidth(true);
             scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-            scrollPane.getStyleClass().add("field-scroll");
+            scrollPane.getStyleClass().add("details-scroll");
 
-            Button pickButton = new Button("무작위로 하나 뽑기");
-            pickButton.setMaxWidth(Double.MAX_VALUE);
-            pickButton.setOnAction(event -> showRandomValue(stage));
-
-            VBox top = new VBox(18, heading, selectorRow);
+            VBox header = new VBox(5, title, subtitle);
+            VBox top = new VBox(18, header, selectors, statusRow);
 
             BorderPane root = new BorderPane();
-            root.setPadding(new Insets(28, 36, 28, 36));
+            root.setPadding(new Insets(26, 34, 30, 34));
             root.setTop(top);
             root.setCenter(scrollPane);
-            root.setBottom(pickButton);
-            BorderPane.setMargin(scrollPane, new Insets(20, 0, 20, 0));
+            BorderPane.setMargin(scrollPane, new Insets(18, 0, 0, 0));
 
-            rebuildTextFields(PickerModel.MIN_COUNT);
-
-            Scene scene = new Scene(root, 520, 560);
+            Scene scene = new Scene(root, 680, 720);
             scene.getStylesheets().add(
                     WelcomeApp.class.getResource("welcome.css").toExternalForm());
 
-            stage.setTitle("무작위 텍스트 뽑기");
-            stage.setMinWidth(440);
-            stage.setMinHeight(420);
+            stage.setTitle("MLB 선수 정보");
+            stage.setMinWidth(580);
+            stage.setMinHeight(600);
             stage.setScene(scene);
             stage.show();
+
+            loadTeams();
         }
 
-        private void rebuildTextFields(int count) {
-            textFields.clear();
-            fieldsBox.getChildren().clear();
+        private void loadTeams() {
+            setLoading("MLB 팀 목록을 불러오는 중...");
+            runAsync(api::loadTeams, teams -> {
+                teamSelector.getItems().setAll(teams);
+                teamSelector.setPromptText("팀 선택");
+                teamSelector.setDisable(false);
+                setReady("팀을 선택하세요.");
+            });
+        }
 
-            for (int index = 0; index < count; index++) {
-                TextField textField = new TextField();
-                textField.setPromptText((index + 1) + "번째 값");
-                textFields.add(textField);
+        private void loadRoster(Team team) {
+            long version = ++requestVersion;
+            playerSelector.getItems().clear();
+            playerSelector.setValue(null);
+            playerSelector.setDisable(true);
+            playerSelector.setPromptText("선수 불러오는 중...");
+            showPlaceholder(team.name() + "의 현재 1군 명단을 불러오고 있습니다.");
+            setLoading(team.name() + " 1군 명단을 불러오는 중...");
 
-                Label numberLabel = new Label((index + 1) + ".");
-                numberLabel.setMinWidth(28);
+            runAsync(() -> api.loadActiveRoster(team.id()), players -> {
+                if (version != requestVersion) {
+                    return;
+                }
+                playerSelector.getItems().setAll(players);
+                playerSelector.setPromptText("선수 선택");
+                playerSelector.setDisable(players.isEmpty());
+                if (players.isEmpty()) {
+                    setReady("현재 활성 선수가 없습니다.");
+                } else {
+                    setReady(players.size() + "명의 현재 1군 선수를 불러왔습니다.");
+                }
+            });
+        }
 
-                HBox row = new HBox(10, numberLabel, textField);
-                row.setAlignment(Pos.CENTER_LEFT);
-                HBox.setHgrow(textField, Priority.ALWAYS);
-                fieldsBox.getChildren().add(row);
+        private void loadPlayer(Player player) {
+            long version = ++requestVersion;
+            showPlaceholder(player.name() + " 정보를 불러오고 있습니다.");
+            setLoading(player.name() + " 정보를 불러오는 중...");
+
+            runAsync(() -> api.loadPlayer(player.id()), details -> {
+                if (version != requestVersion) {
+                    return;
+                }
+                showDetails(details);
+                setReady("현재 시즌 기준 정보입니다.");
+            });
+        }
+
+        private <T> void runAsync(CheckedSupplier<T> supplier, Consumer<T> onSuccess) {
+            CompletableFuture.supplyAsync(() -> {
+                try {
+                    return supplier.get();
+                } catch (Exception exception) {
+                    throw new CompletionException(exception);
+                }
+            }).whenComplete((result, error) -> Platform.runLater(() -> {
+                if (error == null) {
+                    onSuccess.accept(result);
+                } else {
+                    showError(rootMessage(error));
+                }
+            }));
+        }
+
+        private void showDetails(PlayerDetails player) {
+            detailsBox.getChildren().clear();
+
+            Label name = new Label(player.name());
+            name.getStyleClass().add("player-name");
+            Label badge = new Label("#" + player.number() + "  " + player.position());
+            badge.getStyleClass().add("player-badge");
+
+            GridPane profile = new GridPane();
+            profile.setHgap(18);
+            profile.setVgap(10);
+            addInfo(profile, 0, "생년월일", player.birthDate());
+            addInfo(profile, 1, "나이", player.age());
+            addInfo(profile, 2, "출생지", player.birthPlace());
+            addInfo(profile, 3, "신장 / 체중", player.height() + " / " + player.weight());
+            addInfo(profile, 4, "타석", player.bats());
+            addInfo(profile, 5, "투구", player.throwsHand());
+
+            detailsBox.getChildren().addAll(name, badge, divider(), profile);
+
+            if (player.stats().isEmpty()) {
+                Label noStats = new Label("현재 시즌 기록이 없습니다.");
+                noStats.getStyleClass().add("placeholder");
+                detailsBox.getChildren().addAll(divider(), noStats);
+                return;
+            }
+
+            for (StatLine stat : player.stats()) {
+                detailsBox.getChildren().addAll(divider(), statSection(stat));
             }
         }
 
-        private void showRandomValue(Stage owner) {
-            List<String> values = textFields.stream().map(TextField::getText).toList();
-            String selectedValue = PickerModel.selectRandomValue(
-                    values,
-                    ThreadLocalRandom.current());
+        private Node statSection(StatLine stat) {
+            String group = stat.group().toLowerCase();
+            boolean pitching = group.contains("pitch");
+            Label heading = new Label(pitching ? "현재 시즌 투구 기록" : "현재 시즌 타격 기록");
+            heading.getStyleClass().add("section-title");
 
-            Alert result = new Alert(Alert.AlertType.INFORMATION);
-            result.initOwner(owner);
-            result.setTitle("뽑기 결과");
-            result.setHeaderText(null);
-            result.setContentText(selectedValue);
-            result.showAndWait();
+            GridPane grid = new GridPane();
+            grid.setHgap(14);
+            grid.setVgap(12);
+            if (pitching) {
+                addMetric(grid, 0, 0, "경기", stat.value("gamesPlayed"));
+                addMetric(grid, 1, 0, "선발", stat.value("gamesStarted"));
+                addMetric(grid, 2, 0, "승-패", stat.value("wins") + "-" + stat.value("losses"));
+                addMetric(grid, 0, 1, "ERA", stat.value("era"));
+                addMetric(grid, 1, 1, "이닝", stat.value("inningsPitched"));
+                addMetric(grid, 2, 1, "탈삼진", stat.value("strikeOuts"));
+                addMetric(grid, 0, 2, "WHIP", stat.value("whip"));
+                addMetric(grid, 1, 2, "세이브", stat.value("saves"));
+            } else {
+                addMetric(grid, 0, 0, "경기", stat.value("gamesPlayed"));
+                addMetric(grid, 1, 0, "타석", stat.value("plateAppearances"));
+                addMetric(grid, 2, 0, "타수", stat.value("atBats"));
+                addMetric(grid, 0, 1, "타율", stat.value("avg"));
+                addMetric(grid, 1, 1, "홈런", stat.value("homeRuns"));
+                addMetric(grid, 2, 1, "타점", stat.value("rbi"));
+                addMetric(grid, 0, 2, "출루율", stat.value("obp"));
+                addMetric(grid, 1, 2, "장타율", stat.value("slg"));
+                addMetric(grid, 2, 2, "OPS", stat.value("ops"));
+            }
+            return new VBox(12, heading, grid);
         }
+
+        private static void configureSelector(ComboBox<?> selector, String prompt) {
+            selector.setPromptText(prompt);
+            selector.setMaxWidth(Double.MAX_VALUE);
+        }
+
+        private static void addInfo(GridPane grid, int row, String label, String value) {
+            Label key = new Label(label);
+            key.getStyleClass().add("info-key");
+            Label content = new Label(value);
+            content.setWrapText(true);
+            content.getStyleClass().add("info-value");
+            grid.add(key, 0, row);
+            grid.add(content, 1, row);
+            GridPane.setHgrow(content, Priority.ALWAYS);
+        }
+
+        private static void addMetric(
+                GridPane grid,
+                int column,
+                int row,
+                String label,
+                String value) {
+            Label metricLabel = new Label(label);
+            metricLabel.getStyleClass().add("metric-label");
+            Label metricValue = new Label(value);
+            metricValue.getStyleClass().add("metric-value");
+            VBox metric = new VBox(3, metricLabel, metricValue);
+            metric.getStyleClass().add("metric");
+            metric.setMaxWidth(Double.MAX_VALUE);
+            grid.add(metric, column, row);
+            GridPane.setHgrow(metric, Priority.ALWAYS);
+        }
+
+        private static Node divider() {
+            Label divider = new Label();
+            divider.getStyleClass().add("divider");
+            divider.setMaxWidth(Double.MAX_VALUE);
+            return divider;
+        }
+
+        private void showPlaceholder(String message) {
+            Label placeholder = new Label(message);
+            placeholder.setWrapText(true);
+            placeholder.getStyleClass().add("placeholder");
+            detailsBox.getChildren().setAll(placeholder);
+        }
+
+        private void setLoading(String message) {
+            progress.setVisible(true);
+            status.setText(message);
+            status.getStyleClass().remove("error");
+        }
+
+        private void setReady(String message) {
+            progress.setVisible(false);
+            status.setText(message);
+            status.getStyleClass().remove("error");
+        }
+
+        private void showError(String message) {
+            progress.setVisible(false);
+            status.setText("오류: " + message);
+            if (!status.getStyleClass().contains("error")) {
+                status.getStyleClass().add("error");
+            }
+            showPlaceholder("정보를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 선택하세요.");
+        }
+
+        private static String rootMessage(Throwable error) {
+            Throwable current = error;
+            while (current.getCause() != null) {
+                current = current.getCause();
+            }
+            return current.getMessage() == null ? current.getClass().getSimpleName() : current.getMessage();
+        }
+    }
+
+    @FunctionalInterface
+    private interface CheckedSupplier<T> {
+        T get() throws Exception;
     }
 }

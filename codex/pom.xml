@@ -5,15 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.kymkym622</groupId>
-    <artifactId>random-text-picker</artifactId>
+    <artifactId>mlb-player-info</artifactId>
     <version>1.0.0</version>
-    <name>Random Text Picker</name>
+    <name>MLB Player Info</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>17</maven.compiler.release>
         <javafx.version>21.0.8</javafx.version>
-        <junit.version>5.13.4</junit.version>
     </properties>
 
     <dependencies>
@@ -21,12 +20,6 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -44,21 +37,13 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.4</version>
-                <configuration>
-                    <useModulePath>true</useModulePath>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>codex/codex.app.WelcomeApp</mainClass>
-                    <launcher>RandomTextPicker</launcher>
-                    <jlinkImageName>RandomTextPicker</jlinkImageName>
+                    <launcher>MLBPlayerInfo</launcher>
+                    <jlinkImageName>MLBPlayerInfo</jlinkImageName>
                 </configuration>
             </plugin>
         </plugins>

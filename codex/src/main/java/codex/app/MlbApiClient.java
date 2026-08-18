@@ -219,5 +219,9 @@ final class MlbApiClient {
         String value(String key) {
             return textOr(values.get(key), "-");
         }
+
+        Map<String, Object> allValues() {
+            return values;
+        }
     }
 }

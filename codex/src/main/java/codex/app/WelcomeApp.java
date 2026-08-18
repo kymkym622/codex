@@ -221,6 +221,10 @@ public final class WelcomeApp {
                 addMetric(grid, 2, 1, "탈삼진", stat.value("strikeOuts"));
                 addMetric(grid, 0, 2, "WHIP", stat.value("whip"));
                 addMetric(grid, 1, 2, "세이브", stat.value("saves"));
+                addMetric(grid, 0, 3, "K/9", Sabermetrics.strikeoutsPerNine(stat.allValues()));
+                addMetric(grid, 1, 3, "BB/9", Sabermetrics.walksPerNine(stat.allValues()));
+                addMetric(grid, 2, 3, "HR/9", Sabermetrics.homeRunsPerNine(stat.allValues()));
+                addMetric(grid, 0, 4, "K-BB%", Sabermetrics.strikeoutMinusWalkPercentage(stat.allValues()));
             } else {
                 addMetric(grid, 0, 0, "경기", stat.value("gamesPlayed"));
                 addMetric(grid, 1, 0, "타석", stat.value("plateAppearances"));
@@ -231,6 +235,10 @@ public final class WelcomeApp {
                 addMetric(grid, 0, 2, "출루율", stat.value("obp"));
                 addMetric(grid, 1, 2, "장타율", stat.value("slg"));
                 addMetric(grid, 2, 2, "OPS", stat.value("ops"));
+                addMetric(grid, 0, 3, "BABIP", Sabermetrics.babip(stat.allValues()));
+                addMetric(grid, 1, 3, "ISO", Sabermetrics.iso(stat.allValues()));
+                addMetric(grid, 2, 3, "BB%", Sabermetrics.walkPercentage(stat.allValues()));
+                addMetric(grid, 0, 4, "K%", Sabermetrics.strikeoutPercentage(stat.allValues()));
             }
             return new VBox(12, heading, grid);
         }

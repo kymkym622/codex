@@ -193,7 +193,7 @@ public final class WelcomeApp {
             }
 
             for (StatLine stat : player.stats()) {
-                detailsBox.getChildren().addAll(divider(), seasonStatSection(stat));
+                detailsBox.getChildren().addAll(divider(), seasonStatSection(stat, player.position()));
             }
         }
 
@@ -230,7 +230,7 @@ public final class WelcomeApp {
             return new VBox(12, heading, grid);
         }
 
-        private Node seasonStatSection(StatLine stat) {
+        private Node seasonStatSection(StatLine stat, String position) {
             String group = stat.group().toLowerCase();
             boolean pitching = group.contains("pitch");
             Label heading = new Label(pitching ? "현재 시즌 투구 기록" : "현재 시즌 타격 기록");
@@ -266,6 +266,7 @@ public final class WelcomeApp {
                 addMetric(grid, 1, 3, "ISO", Sabermetrics.iso(stat.allValues()));
                 addMetric(grid, 2, 3, "BB%", Sabermetrics.walkPercentage(stat.allValues()));
                 addMetric(grid, 0, 4, "K%", Sabermetrics.strikeoutPercentage(stat.allValues()));
+                addMetric(grid, 1, 4, "예상 wRC+", Sabermetrics.expectedWrcPlus(stat.allValues(), position));
             }
             return new VBox(12, heading, grid);
         }

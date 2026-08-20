@@ -181,7 +181,7 @@ public final class WelcomeApp {
                 detailsBox.getChildren().add(noToday);
             } else {
                 for (StatLine stat : player.todayStats()) {
-                    detailsBox.getChildren().add(todayStatSection(stat));
+                    detailsBox.getChildren().add(todayStatSection(stat, player.position()));
                 }
             }
 
@@ -197,7 +197,7 @@ public final class WelcomeApp {
             }
         }
 
-        private Node todayStatSection(StatLine stat) {
+        private Node todayStatSection(StatLine stat, String position) {
             boolean pitching = stat.group().toLowerCase().contains("pitch");
             Label heading = new Label(pitching ? "오늘 경기 투구 기록" : "오늘 경기 타격 기록");
             heading.getStyleClass().add("section-title");
@@ -226,6 +226,7 @@ public final class WelcomeApp {
                 addMetric(grid, 1, 2, "볼넷", stat.value("baseOnBalls"));
                 addMetric(grid, 2, 2, "삼진", stat.value("strikeOuts"));
                 addMetric(grid, 0, 3, "도루", stat.value("stolenBases"));
+                addMetric(grid, 1, 3, "예상 wRC+", Sabermetrics.expectedWrcPlus(stat.allValues(), position));
             }
             return new VBox(12, heading, grid);
         }

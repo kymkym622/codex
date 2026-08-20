@@ -6,7 +6,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.Year;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.Map;
 
 final class MlbApiClient {
     private static final String API_ROOT = "https://statsapi.mlb.com/api/v1";
+    private static final ZoneId MLB_DATE_ZONE = ZoneId.of("America/New_York");
     private static final List<Team> MLB_TEAMS = List.of(
             new Team(108, "Los Angeles Angels"),
             new Team(109, "Arizona Diamondbacks"),
@@ -57,15 +60,12 @@ final class MlbApiClient {
     }
 
     static List<Team> teams() {
-        return MLB_TEAMS.stream()
-                .sorted(Comparator.comparing(Team::name))
-                .toList();
+        return MLB_TEAMS.stream().sorted(Comparator.comparing(Team::name)).toList();
     }
 
     List<Player> loadActiveRoster(int teamId) throws IOException, InterruptedException {
         int season = Year.now().getValue();
-        String json = get("/teams/" + teamId
-                + "/roster?rosterType=active&season=" + season + "&hydrate=person");
+        String json = get("/teams/" + teamId + "/roster?rosterType=active&season=" + season + "&hydrate=person");
         return parseRoster(json);
     }
 
@@ -76,11 +76,8 @@ final class MlbApiClient {
             Map<String, Object> rosterEntry = object(item);
             Map<String, Object> person = object(rosterEntry.get("person"));
             Map<String, Object> position = object(rosterEntry.get("position"));
-            players.add(new Player(
-                    integer(person.get("id")),
-                    text(person.get("fullName")),
-                    textOr(rosterEntry.get("jerseyNumber"), "-"),
-                    textOr(position.get("name"), "-")));
+            players.add(new Player(integer(person.get("id")), text(person.get("fullName")),
+                    textOr(rosterEntry.get("jerseyNumber"), "-"), textOr(position.get("name"), "-")));
         }
         players.sort(Comparator.comparing(Player::name));
         return List.copyOf(players);
@@ -99,6 +96,7 @@ final class MlbApiClient {
         Map<String, Object> pitchHand = object(person.get("pitchHand"));
 
         List<StatLine> stats = loadSeasonStats(playerId);
+        List<StatLine> todayStats = loadTodayStats(playerId);
         return new PlayerDetails(
                 text(person.get("fullName")),
                 textOr(person.get("primaryNumber"), "-"),
@@ -110,16 +108,15 @@ final class MlbApiClient {
                 textOr(person.get("weight"), "-") + " lb",
                 textOr(batSide.get("description"), "-"),
                 textOr(pitchHand.get("description"), "-"),
-                stats);
+                stats,
+                todayStats);
     }
 
     private List<StatLine> loadSeasonStats(int playerId) throws IOException, InterruptedException {
         int season = Year.now().getValue();
-        String path = "/people/" + playerId
-                + "/stats?stats=season&group=hitting,pitching&season=" + season;
+        String path = "/people/" + playerId + "/stats?stats=season&group=hitting,pitching&season=" + season;
         Map<String, Object> root = object(SimpleJson.parse(get(path)));
         List<StatLine> result = new ArrayList<>();
-
         for (Object item : array(root.get("stats"))) {
             Map<String, Object> stats = object(item);
             String group = textOr(object(stats.get("group")).get("displayName"), "기록");
@@ -131,16 +128,33 @@ final class MlbApiClient {
         return List.copyOf(result);
     }
 
+    private List<StatLine> loadTodayStats(int playerId) throws IOException, InterruptedException {
+        int season = Year.now(MLB_DATE_ZONE).getValue();
+        String today = LocalDate.now(MLB_DATE_ZONE).toString();
+        String path = "/people/" + playerId + "/stats?stats=gameLog&group=hitting,pitching&season=" + season;
+        Map<String, Object> root = object(SimpleJson.parse(get(path)));
+        List<StatLine> result = new ArrayList<>();
+
+        for (Object item : array(root.get("stats"))) {
+            Map<String, Object> stats = object(item);
+            String group = textOr(object(stats.get("group")).get("displayName"), "기록");
+            for (Object splitItem : array(stats.get("splits"))) {
+                Map<String, Object> split = object(splitItem);
+                if (today.equals(textOr(split.get("date"), ""))) {
+                    result.add(new StatLine(group, object(split.get("stat"))));
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+
     private String get(String path) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(API_ROOT + path))
                 .timeout(Duration.ofSeconds(20))
                 .header("Accept", "application/json")
                 .header("User-Agent", "MLBPlayerInfo/1.0")
-                .GET()
-                .build();
-        HttpResponse<String> response = httpClient.send(
-                request,
-                HttpResponse.BodyHandlers.ofString());
+                .GET().build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new IOException("MLB 서버 응답 오류: " + response.statusCode());
         }
@@ -157,9 +171,7 @@ final class MlbApiClient {
 
     private static void addIfPresent(List<String> target, Object value) {
         String text = textOr(value, "");
-        if (!text.isBlank()) {
-            target.add(text);
-        }
+        if (!text.isBlank()) target.add(text);
     }
 
     @SuppressWarnings("unchecked")
@@ -173,55 +185,28 @@ final class MlbApiClient {
     }
 
     private static int integer(Object value) {
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
+        if (value instanceof Number number) return number.intValue();
         return Integer.parseInt(String.valueOf(value));
     }
 
-    private static String text(Object value) {
-        return String.valueOf(value);
-    }
-
-    private static String textOr(Object value, String fallback) {
-        return value == null ? fallback : String.valueOf(value);
-    }
+    private static String text(Object value) { return String.valueOf(value); }
+    private static String textOr(Object value, String fallback) { return value == null ? fallback : String.valueOf(value); }
 
     record Team(int id, String name) {
-        @Override
-        public String toString() {
-            return name;
-        }
+        @Override public String toString() { return name; }
     }
 
     record Player(int id, String name, String number, String position) {
-        @Override
-        public String toString() {
-            return number.equals("-") ? name : "#" + number + "  " + name;
-        }
+        @Override public String toString() { return number.equals("-") ? name : "#" + number + "  " + name; }
     }
 
-    record PlayerDetails(
-            String name,
-            String number,
-            String position,
-            String birthDate,
-            String age,
-            String birthPlace,
-            String height,
-            String weight,
-            String bats,
-            String throwsHand,
-            List<StatLine> stats) {
+    record PlayerDetails(String name, String number, String position, String birthDate, String age,
+            String birthPlace, String height, String weight, String bats, String throwsHand,
+            List<StatLine> stats, List<StatLine> todayStats) {
     }
 
     record StatLine(String group, Map<String, Object> values) {
-        String value(String key) {
-            return textOr(values.get(key), "-");
-        }
-
-        Map<String, Object> allValues() {
-            return values;
-        }
+        String value(String key) { return textOr(values.get(key), "-"); }
+        Map<String, Object> allValues() { return values; }
     }
 }

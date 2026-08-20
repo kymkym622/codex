@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.kymkym622</groupId>
-    <artifactId>mlb-player-info</artifactId>
+    <artifactId>javafx-empty-app</artifactId>
     <version>1.0.0</version>
-    <name>MLB Player Info</name>
+    <name>JavaFX Empty App</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -24,7 +24,7 @@
     </dependencies>
 
     <build>
-        <finalName>MLB</finalName>
+        <finalName>JavaFXEmptyApp</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -91,8 +91,8 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>codex/codex.app.WelcomeApp</mainClass>
-                    <launcher>MLBPlayerInfo</launcher>
-                    <jlinkImageName>MLBPlayerInfo</jlinkImageName>
+                    <launcher>JavaFXEmptyApp</launcher>
+                    <jlinkImageName>JavaFXEmptyApp</jlinkImageName>
                 </configuration>
             </plugin>
         </plugins>

@@ -1,6 +1,5 @@
 package codex.app;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
@@ -55,14 +54,10 @@ public final class WelcomeApp {
             playerSelector.setDisable(true);
 
             teamSelector.valueProperty().addListener((observable, oldTeam, team) -> {
-                if (team != null) {
-                    loadRoster(team);
-                }
+                if (team != null) loadRoster(team);
             });
             playerSelector.valueProperty().addListener((observable, oldPlayer, player) -> {
-                if (player != null) {
-                    loadPlayer(player);
-                }
+                if (player != null) loadPlayer(player);
             });
 
             GridPane selectors = new GridPane();
@@ -100,8 +95,7 @@ public final class WelcomeApp {
             BorderPane.setMargin(scrollPane, new Insets(18, 0, 0, 0));
 
             Scene scene = new Scene(root, 680, 720);
-            scene.getStylesheets().add(
-                    WelcomeApp.class.getResource("welcome.css").toExternalForm());
+            scene.getStylesheets().add(WelcomeApp.class.getResource("welcome.css").toExternalForm());
 
             stage.setTitle("MLB 선수 정보");
             stage.setMinWidth(580);
@@ -127,17 +121,12 @@ public final class WelcomeApp {
             setLoading(team.name() + " 1군 명단을 불러오는 중...");
 
             runAsync(() -> api.loadActiveRoster(team.id()), players -> {
-                if (version != requestVersion) {
-                    return;
-                }
+                if (version != requestVersion) return;
                 playerSelector.getItems().setAll(players);
                 playerSelector.setPromptText("선수 선택");
                 playerSelector.setDisable(players.isEmpty());
-                if (players.isEmpty()) {
-                    setReady("현재 활성 선수가 없습니다.");
-                } else {
-                    setReady(players.size() + "명의 현재 1군 선수를 불러왔습니다.");
-                }
+                setReady(players.isEmpty() ? "현재 활성 선수가 없습니다."
+                        : players.size() + "명의 현재 1군 선수를 불러왔습니다.");
             });
         }
 
@@ -147,11 +136,9 @@ public final class WelcomeApp {
             setLoading(player.name() + " 정보를 불러오는 중...");
 
             runAsync(() -> api.loadPlayer(player.id()), details -> {
-                if (version != requestVersion) {
-                    return;
-                }
+                if (version != requestVersion) return;
                 showDetails(details);
-                setReady("현재 시즌 기준 정보입니다.");
+                setReady("현재 시즌 기록과 오늘 경기 기록입니다.");
             });
         }
 
@@ -163,11 +150,8 @@ public final class WelcomeApp {
                     throw new CompletionException(exception);
                 }
             }).whenComplete((result, error) -> Platform.runLater(() -> {
-                if (error == null) {
-                    onSuccess.accept(result);
-                } else {
-                    showError(rootMessage(error));
-                }
+                if (error == null) onSuccess.accept(result);
+                else showError(rootMessage(error));
             }));
         }
 
@@ -188,8 +172,18 @@ public final class WelcomeApp {
             addInfo(profile, 3, "신장 / 체중", player.height() + " / " + player.weight());
             addInfo(profile, 4, "타석", player.bats());
             addInfo(profile, 5, "투구", player.throwsHand());
-
             detailsBox.getChildren().addAll(name, badge, divider(), profile);
+
+            detailsBox.getChildren().add(divider());
+            if (player.todayStats().isEmpty()) {
+                Label noToday = new Label("오늘 경기 출전 기록이 없습니다.");
+                noToday.getStyleClass().add("placeholder");
+                detailsBox.getChildren().add(noToday);
+            } else {
+                for (StatLine stat : player.todayStats()) {
+                    detailsBox.getChildren().add(todayStatSection(stat));
+                }
+            }
 
             if (player.stats().isEmpty()) {
                 Label noStats = new Label("현재 시즌 기록이 없습니다.");
@@ -199,11 +193,44 @@ public final class WelcomeApp {
             }
 
             for (StatLine stat : player.stats()) {
-                detailsBox.getChildren().addAll(divider(), statSection(stat));
+                detailsBox.getChildren().addAll(divider(), seasonStatSection(stat));
             }
         }
 
-        private Node statSection(StatLine stat) {
+        private Node todayStatSection(StatLine stat) {
+            boolean pitching = stat.group().toLowerCase().contains("pitch");
+            Label heading = new Label(pitching ? "오늘 경기 투구 기록" : "오늘 경기 타격 기록");
+            heading.getStyleClass().add("section-title");
+            GridPane grid = new GridPane();
+            grid.setHgap(14);
+            grid.setVgap(12);
+
+            if (pitching) {
+                addMetric(grid, 0, 0, "이닝", stat.value("inningsPitched"));
+                addMetric(grid, 1, 0, "피안타", stat.value("hits"));
+                addMetric(grid, 2, 0, "실점", stat.value("runs"));
+                addMetric(grid, 0, 1, "자책", stat.value("earnedRuns"));
+                addMetric(grid, 1, 1, "볼넷", stat.value("baseOnBalls"));
+                addMetric(grid, 2, 1, "탈삼진", stat.value("strikeOuts"));
+                addMetric(grid, 0, 2, "피홈런", stat.value("homeRuns"));
+                addMetric(grid, 1, 2, "투구수", stat.value("numberOfPitches"));
+                addMetric(grid, 2, 2, "스트라이크", stat.value("strikes"));
+            } else {
+                addMetric(grid, 0, 0, "타수", stat.value("atBats"));
+                addMetric(grid, 1, 0, "득점", stat.value("runs"));
+                addMetric(grid, 2, 0, "안타", stat.value("hits"));
+                addMetric(grid, 0, 1, "2루타", stat.value("doubles"));
+                addMetric(grid, 1, 1, "3루타", stat.value("triples"));
+                addMetric(grid, 2, 1, "홈런", stat.value("homeRuns"));
+                addMetric(grid, 0, 2, "타점", stat.value("rbi"));
+                addMetric(grid, 1, 2, "볼넷", stat.value("baseOnBalls"));
+                addMetric(grid, 2, 2, "삼진", stat.value("strikeOuts"));
+                addMetric(grid, 0, 3, "도루", stat.value("stolenBases"));
+            }
+            return new VBox(12, heading, grid);
+        }
+
+        private Node seasonStatSection(StatLine stat) {
             String group = stat.group().toLowerCase();
             boolean pitching = group.contains("pitch");
             Label heading = new Label(pitching ? "현재 시즌 투구 기록" : "현재 시즌 타격 기록");
@@ -259,12 +286,7 @@ public final class WelcomeApp {
             GridPane.setHgrow(content, Priority.ALWAYS);
         }
 
-        private static void addMetric(
-                GridPane grid,
-                int column,
-                int row,
-                String label,
-                String value) {
+        private static void addMetric(GridPane grid, int column, int row, String label, String value) {
             Label metricLabel = new Label(label);
             metricLabel.getStyleClass().add("metric-label");
             Label metricValue = new Label(value);
@@ -305,17 +327,13 @@ public final class WelcomeApp {
         private void showError(String message) {
             progress.setVisible(false);
             status.setText("오류: " + message);
-            if (!status.getStyleClass().contains("error")) {
-                status.getStyleClass().add("error");
-            }
+            if (!status.getStyleClass().contains("error")) status.getStyleClass().add("error");
             showPlaceholder("정보를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 선택하세요.");
         }
 
         private static String rootMessage(Throwable error) {
             Throwable current = error;
-            while (current.getCause() != null) {
-                current = current.getCause();
-            }
+            while (current.getCause() != null) current = current.getCause();
             return current.getMessage() == null ? current.getClass().getSimpleName() : current.getMessage();
         }
     }

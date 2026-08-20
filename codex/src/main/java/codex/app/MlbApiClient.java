@@ -6,17 +6,20 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Year;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 final class MlbApiClient {
     private static final String API_ROOT = "https://statsapi.mlb.com/api/v1";
-    private static final ZoneId MLB_DATE_ZONE = ZoneId.of("America/New_York");
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final List<Team> MLB_TEAMS = List.of(
             new Team(108, "Los Angeles Angels"),
             new Team(109, "Arizona Diamondbacks"),
@@ -129,8 +132,13 @@ final class MlbApiClient {
     }
 
     private List<StatLine> loadTodayStats(int playerId) throws IOException, InterruptedException {
-        int season = Year.now(MLB_DATE_ZONE).getValue();
-        String today = LocalDate.now(MLB_DATE_ZONE).toString();
+        LocalDate koreaToday = LocalDate.now(KOREA_ZONE);
+        Set<Integer> todayGamePks = loadKoreaTodayGamePks(koreaToday);
+        if (todayGamePks.isEmpty()) {
+            return List.of();
+        }
+
+        int season = koreaToday.getYear();
         String path = "/people/" + playerId + "/stats?stats=gameLog&group=hitting,pitching&season=" + season;
         Map<String, Object> root = object(SimpleJson.parse(get(path)));
         List<StatLine> result = new ArrayList<>();
@@ -140,12 +148,52 @@ final class MlbApiClient {
             String group = textOr(object(stats.get("group")).get("displayName"), "기록");
             for (Object splitItem : array(stats.get("splits"))) {
                 Map<String, Object> split = object(splitItem);
-                if (today.equals(textOr(split.get("date"), ""))) {
+                int gamePk = splitGamePk(split);
+                if (gamePk > 0 && todayGamePks.contains(gamePk)) {
                     result.add(new StatLine(group, object(split.get("stat"))));
                 }
             }
         }
         return List.copyOf(result);
+    }
+
+    private Set<Integer> loadKoreaTodayGamePks(LocalDate koreaToday) throws IOException, InterruptedException {
+        LocalDate startDate = koreaToday.minusDays(1);
+        String path = "/schedule?sportId=1&startDate=" + startDate + "&endDate=" + koreaToday;
+        Map<String, Object> root = object(SimpleJson.parse(get(path)));
+        Set<Integer> gamePks = new HashSet<>();
+
+        for (Object dateItem : array(root.get("dates"))) {
+            Map<String, Object> date = object(dateItem);
+            for (Object gameItem : array(date.get("games"))) {
+                Map<String, Object> game = object(gameItem);
+                String gameDate = textOr(game.get("gameDate"), "");
+                if (gameDate.isBlank()) {
+                    continue;
+                }
+                try {
+                    LocalDate koreaGameDate = Instant.parse(gameDate).atZone(KOREA_ZONE).toLocalDate();
+                    if (koreaToday.equals(koreaGameDate)) {
+                        int gamePk = integerOr(game.get("gamePk"), -1);
+                        if (gamePk > 0) {
+                            gamePks.add(gamePk);
+                        }
+                    }
+                } catch (RuntimeException ignored) {
+                    // 잘못된 경기 시간 값은 건너뜁니다.
+                }
+            }
+        }
+        return gamePks;
+    }
+
+    private static int splitGamePk(Map<String, Object> split) {
+        Map<String, Object> game = object(split.get("game"));
+        int gamePk = integerOr(game.get("gamePk"), -1);
+        if (gamePk > 0) {
+            return gamePk;
+        }
+        return integerOr(game.get("id"), -1);
     }
 
     private String get(String path) throws IOException, InterruptedException {
@@ -187,6 +235,20 @@ final class MlbApiClient {
     private static int integer(Object value) {
         if (value instanceof Number number) return number.intValue();
         return Integer.parseInt(String.valueOf(value));
+    }
+
+    private static int integerOr(Object value, int fallback) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
     }
 
     private static String text(Object value) { return String.valueOf(value); }
